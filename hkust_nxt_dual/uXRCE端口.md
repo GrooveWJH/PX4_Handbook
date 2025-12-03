@@ -5,7 +5,7 @@
 ### 1. 板载串口概览
 - `.px4board` 别名：`TELEM1=/dev/ttyS1`（USART2）、`TELEM2=/dev/ttyS3`（UART4）、`TELEM3=/dev/ttyS6`（UART7）、`TELEM4=/dev/ttyS7`（UART8）。
 - `defconfig` 已启用 UART4/7/8，并允许运行期通过参数设置波特率；板级无以太网 PHY，因此 uXRCE-DDS 只能选择串口角色（`UXRCE_DDS_CFG=101~104`）。
-- `rc.board_defaults`：`MAV_0_CONFIG=301`（USB CDC MAVLink）、`UXRCE_DDS_CFG=102`（TELEM2）、`SER_TEL2_BAUD=115200`；`SENS_TFMINI_CFG` 复位为 0，默认不再占用 TELEM2。
+- `rc.board_defaults`：`MAV_0_CONFIG=301`（USB CDC MAVLink）、`UXRCE_DDS_CFG=102`（TELEM2）、`SER_TEL2_BAUD=115200`；`SENS_TFMINI_CFG` 已清零，如需串行雷达需手动重新设置端口。
 
 ### 2. 默认：TELEM2 (`/dev/ttyS3`，UART4) 运行 uXRCE
 - 参数 `UXRCE_DDS_CFG=102` → `uxrce_dds_client` 自动绑定 TELEM2。
