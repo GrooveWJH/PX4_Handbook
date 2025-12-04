@@ -1,0 +1,5 @@
+HKUST NXT-Dual 快照：
+- default.px4board：TELEM1=/ttyS1(NSH)，TELEM2=/ttyS3(测距仪/TFmini)，TELEM4=/ttyS7(UART8 uXRCE)。
+- rc.board_defaults：USB CDC = MAVLink (`MAV_0_CONFIG=301`)，`UXRCE_DDS_CFG=104`，`SENS_TFMINI_CFG=102`，全串口默认 115200。
+- defconfig：`CONFIG_USART2_BAUD=115200` (TELEM1 console)，UART4=921600（TELEM2），UART8 Enabled (ttyS7)。
+用途：TELEM1→NSH，TELEM2→串行测距仪，TELEM4/UART8→uXRCE-DDS，USB-C 继续 MAVLink/QGC。
