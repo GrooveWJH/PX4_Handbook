@@ -1,0 +1,49 @@
+# macOS artifacts
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux desktop cruft
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# PX4 / Nuttx builds and logs
+build*/
+logs/
+*.px4log
+*.ulg
+*.bin
+*.elf
+*.px4
+
+# ROS catkin and colcon workspaces
+build/
+devel/
+install/
+log/
+logs/
+.catkin_tools/
+.rosinstall
+
+# STM32 / embedded toolchains
+Debug/
+Release/
+*.hex
+*.map
+*.lst
+*.d
+*.o
+*.axf
+
+# CMake generators
+CMakeFiles/
+CMakeCache.txt
+cmake-build*/
