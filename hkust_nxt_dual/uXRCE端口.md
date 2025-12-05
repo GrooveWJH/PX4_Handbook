@@ -1,35 +1,49 @@
 ## HKUST NXT-Dual 上的 uXRCE-DDS 串口选择
 
-本文说明当前固件默认如何在 HKUST NXT-Dual 上部署 uXRCE-DDS，并解释为什么选择 UART4（TELEM2）作为标准接口。
+> 快照参考：`archive/board_config/hkust#2`（2025-12-05）。如需了解其它版本的默认口，请查看对应快照；本文重点讲“怎样选口、怎样验证”，而不是追踪每次改动。
 
-### 1. 板载串口概览
-- `.px4board` 别名：`TELEM1=/dev/ttyS1`（USART2）、`TELEM2=/dev/ttyS3`（UART4）、`TELEM3=/dev/ttyS6`（UART7）、`TELEM4=/dev/ttyS7`（UART8）。
-- `defconfig` 已启用 UART4/7/8，并允许运行期通过参数设置波特率；板级无以太网 PHY，因此 uXRCE-DDS 只能选择串口角色（`UXRCE_DDS_CFG=101~104`）。
-- `rc.board_defaults`：`MAV_0_CONFIG=301`（USB CDC MAVLink）、`UXRCE_DDS_CFG=102`（TELEM2）、`SER_TEL2_BAUD=115200`；`SENS_TFMINI_CFG` 已清零，如需串行雷达需手动重新设置端口。
+### 1. `UXRCE_DDS_CFG` 映射规则
 
-### 2. 默认：TELEM2 (`/dev/ttyS3`，UART4) 运行 uXRCE
-- 参数 `UXRCE_DDS_CFG=102` → `uxrce_dds_client` 自动绑定 TELEM2。
-- UART4 物理脚位 PB9（TX）/PB8（RX），在板子丝印为 UART4/TELEM2，线束常用于伴飞/高速串口。
-- `SER_TEL2_BAUD=115200`。如需更高带宽，可在参数中直接修改，Agent 需保持一致。
+PX4 把常用串口封装为“接口槽位”，并用枚举的方式填写参数：
 
-### 3. TELEM4（UART8）恢复空闲
-- `UXRCE_DDS_CFG` 不再指向 TELEM4，`SER_TEL4_BAUD` 也被移除，UART8 默认为空闲接口，可按需给调试/雷达使用。
-- 若想改回 UART8，可在参数里把 `UXRCE_DDS_CFG` 改为 104，再视需要设置 `SER_TEL4_BAUD`；但需确保 UART8 线束与伴飞连接。
+| 参数值 | 说明 | 典型 `/dev/ttyS*` | 备注 |
+| --- | --- | --- | --- |
+| 101 | TELEM1 | `/dev/ttyS1` | `.px4board` 决定 TELEM1 的真实 UART |
+| 102 | TELEM2 | `/dev/ttyS3` | 常用作测距仪或副链路 |
+| 103 | TELEM3 | `/dev/ttyS6` | 备用串口 |
+| 104 | TELEM4 | `/dev/ttyS7` | 板上 Debug/UART8 |
+| 0 | 关闭 | — | 不启动 uXRCE |
 
-### 4. 用户操作步骤
-1. 将 ROS2 Agent/伴飞电脑的串口接到 UART4 (PB9/PB8)。
+因此，`UXRCE_DDS_CFG` 仅仅是“选择哪一个 TELEM 槽位”，剩下的波特率、脚位都由 `.px4board` 与 `SER_TEL*_BAUD` 控制。若板厂改动了 `default.px4board`，直接查快照即可知道槽位→串口的映射。
+
+### 2. 快照 #2 的默认安排
+- `.px4board`：`TELEM1=/dev/ttyS1`（USART2）、`TELEM2=/dev/ttyS3`（UART4）…… 详见 `串口映射.md`。
+- `defconfig`：USB CDC 直连 NSH（`CONFIG_NSH_USBCONSOLE=y`），USART2/4/7/8 均启用。
+- `rc.board_defaults`：`UXRCE_DDS_CFG=101`（即 TELEM1），`SER_TEL1_BAUD=921600`，`SENS_TFMINI_CFG=102` 把 TELEM2 交给 TFmini。
+
+### 3. 默认：TELEM1 (`/dev/ttyS1`) 运行 uXRCE
+- `UXRCE_DDS_CFG=101` → `uxrce_dds_client` 绑定 TELEM1。
+- 波特率由 `SER_TEL1_BAUD` 控制（快照 #2 设为 921600），伴飞端需一致。
+- 需要换口时，更改 `UXRCE_DDS_CFG` 即可，无需改源码；但要记得释放该串口（例如 TFmini、MAVLink 等要先停掉）。
+
+### 4. TELEM2（UART4）用于串行测距仪
+- `SENS_TFMINI_CFG=102` 会在 `/dev/ttyS3` 自动起 TFmini 驱动；若要把 uXRCE 挪到 TELEM2，需要先把该参数改为 0。
+- 同理，其他串口也是“谁先占用谁”，请通过参数管理好各模块的串口需求。
+
+### 5. 用户操作步骤
+1. 将 ROS2 Agent/伴飞电脑的串口接到 UART2 (PD5/PD6)。
 2. QGC 参数确认/修改：
-   - `UXRCE_DDS_CFG = 102`
-   - `SER_TEL2_BAUD = <目标波特率>`
+   - `UXRCE_DDS_CFG = 101`
+   - `SER_TEL1_BAUD = 921600`（或你设定的速率）
    - 若 Agent 需要特定命名空间/密钥，可一并设置 `UXRCE_DDS_NS_IDX`、`UXRCE_DDS_KEY` 等。
 3. 伴飞端运行 `MicroXRCEAgent serial --dev /dev/ttyUSBx -b <同样的 baud>`。
-4. 在 NSH 执行 `uxrce_dds_client status`，确认其绑定 `Serial type @ /dev/ttyS3`。
+4. 在 NSH 执行 `uxrce_dds_client status`，确认其绑定 `Serial type @ /dev/ttyS1`。
 
-> 调试 tip：若 `uxrce_dds_client status` 显示 `not running`，可手动执行 `uxrce_dds_client start -t serial -d /dev/ttyS3 -b <baud>` 验证线路，再回到参数模式。
+> 调试 tip：若 `uxrce_dds_client status` 显示 `not running`，可手动执行 `uxrce_dds_client start -t serial -d /dev/ttyS1 -b <baud>` 验证线路，再回到参数模式。
 
-### 5. FAQ
-- **还能改回 TELEM4 吗？** 可以，将 `UXRCE_DDS_CFG` 改为 104 并重启即可，但那时就需要把伴飞改接 UART8。
-- **TELEM1 是干什么的？** `CONFIG_USART2_SERIAL_CONSOLE=y`，所以 `/dev/ttyS1`（TELEM1）已作为 115200 波特的 NuttX/NSH 控制台，串口调试线需接在 USART2 上。
-- **USB CDC 会影响 uXRCE 吗？** 不会，USB (`/dev/ttyACM0`) 仍用于 MAVLink/QGC/刷机；uXRCE 与之独立，走 UART4。
+### 6. FAQ
+- **还能改用其它串口吗？** 可以，将 `UXRCE_DDS_CFG` 改为 102/103/104 并同步连线即可；注意避开 TFmini 或其它串口外设。
+- **NSH 在哪里？** `CONFIG_NSH_USBCONSOLE=y`，NSH 通过 USB-C → `/dev/ttyACM0` 输出，连接后连续敲 3 次回车即可获得 `nsh>`。
+- **既然 USB 是 NSH，还能刷机吗？** 可以，PX4 bootloader 仍在 USB CDC 上枚举，刷写流程不受影响。
 
-综上，新的默认配置让 TELEM1→NSH、TELEM2→uXRCE-DDS、TELEM4 空闲待用；既能在 NSH 直接检查 uXRCE 状态，又让 USB-C 继续跑 MAVLink/QGC。***
+综上，通过“参数选择槽位 + `.px4board` 提供别名 + 快照记录实际 wiring”，就能在 HKUST 板上自由切换 uXRCE 所用的串口，同时保持手册内容长期稳定。***
