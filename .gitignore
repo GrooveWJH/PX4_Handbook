@@ -47,3 +47,6 @@ Release/
 CMakeFiles/
 CMakeCache.txt
 cmake-build*/
+
+
+*.pdf
