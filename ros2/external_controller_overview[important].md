@@ -38,7 +38,8 @@ CMD --> LOOP : 统一下发 uORB setpoints
 ### 3. PX4 在何时接受 External Controller？（源码+解释）
 
 - `ModeUtil/control_mode.cpp:123` 的 `switch(nav_state)` 显示：只有当 `vehicle_status.nav_state` 属于 `NAVIGATION_STATE_OFFBOARD` 或 `NAVIGATION_STATE_EXTERNAL1..EXTERNAL8` 时，PX4 才会设置 `vehicle_control_mode.flag_control_offboard_enabled` 并把 `offboard_control_mode` 对应的 setpoint 注入控制回路。
-- `ModeManagement.cpp:212` 里 `_external_checks.setExternalNavStates(...)` 把 external1..8 注册成“可被 ROS 2 模式使用”的导航状态，并在 Commander 的模式表里标记为 External Mode。
+- 同一文件的 `case NAVIGATION_STATE_OFFBOARD` 说明 Commander 只在 Offboard 分支里打开 `flag_control_offboard_enabled` 并解析 `offboard_control_mode`（位置/速度/姿态/推力/直接电机控制等）；其它 nav_state 根本不会读取这些 setpoint，自然也不会让 External Controller 生效。
+- `ModeManagement.cpp:212` 中 `_external_checks.setExternalNavStates(...)` 把 external1..8 注册成“可被 ROS 2 模式使用”的导航状态；`ModeManagement.cpp:212-352` 展示了 `checkNewRegistrations()` 如何通过 `register_ext_component_request` 为 External Mode 分配 nav_state 并将哈希写入 `COM_MODE*_HASH`，确保 RC/QGC 可映射到具体 externalX。
 - 翻译成白话：PX4 只在 Offboard 和 External 模式下才“真正听命于 External Controller”。其余模式（Manual/Posctl/Mission 等）依旧使用 PX4 内部 setpoint，即使外部程序在后台持续发送数据，也只会作为健康检查（`HealthAndArmingChecks/checks/offboardCheck.cpp`）记录“信号可用”，不会执行。
 - 因此 PX4 v1.14/1.15 的 External Controller 可以运行在 **Offboard**（简单、轻量）或 **External Mode**（功能完全开放）两类 nav_state 下：前者沿袭旧的 setpoint 接口，后者借助 `px4_ros2_interface_lib` 提供更自由的 ROS 2 API。
 
