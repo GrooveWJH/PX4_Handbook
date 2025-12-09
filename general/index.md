@@ -7,5 +7,6 @@
 | `避障机制.md` | 总结 CollisionPrevention 工作流程与参数。 |
 | `TFmini数据流.md` | 描述 TFmini 串行激光数据从驱动到 uORB 的路径。 |
 | `PX4_uXRCE_DDS话题配置.md` | 说明 `dds_topics.yaml` 的生成机制、扩展步骤与排错方法。 |
+| `ros2_external_controller_vs_mavros.md` | 对比 ROS2 External Controller 与 ROS1 MAVROS 控制路径、优劣与适用场景。 |
 
 > 新增文档时，请在此表格中追加条目，便于快速定位。 
