@@ -103,3 +103,12 @@ Flags --> GCS : MAVLink `ESTIMATOR_STATUS`
 
 ---
 **总结**：`control_mode_flags` 是 EKF2 对“当前融合策略/状态”的实时映射。读取该 bitmask 可以判断 EKF 是否在使用 GNSS、外部视觉、气压、测距等观测，也能识别传感器故障（如 `CS_RNG_FAULT`, `CS_MAG_FAULT`）。
+
+## 附：两个常见 flags 的差异示例
+
+| 场景 | Bitmask (十进制 / 二进制) | 典型含义 |
+| --- | --- | --- |
+| **全量 GNSS + 外部视觉**（示例 `551970436611`） | `0b1000'0000'1000'0100'0000'0000'0111'0110'0000'0011` | EKF 既融合 GNSS 位置/速度 (`CS_GNSS_POS`, `CS_GNSS_VEL`)，也融合外部视觉位置/速度/yaw/高度 (`CS_EV_POS`, `CS_EV_VEL`, `CS_EV_YAW`, `CS_EV_HGT`)，同时 `CS_BARO_HGT`、`CS_IN_AIR` 等正常工作。适用于“GNSS + 外部视觉双重冗余”的空中飞行。 |
+| **完全依赖外部视觉**（示例 `2768710403587`） | `0b10'1000'0100'1010'0100'0000'0000'0000'0110'0000'0011` | GNSS 相关 bit2/bit44 为 0（不再融合 GNSS），但 `CS_EV_POS`/`CS_EV_HGT` 等保持 1，说明 EKF 完全依赖外部视觉；`solution_status_flags` 中也只报告局部/相对位置可信，适合室内动捕场景。 |
+
+> 通过比较不同的 bitmask，可快速判断 EKF 当前融合了哪些来源、哪些观测被禁用，从而在调试外部视觉、GNSS 故障等场景中获取关键信息。
