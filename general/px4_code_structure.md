@@ -8,28 +8,17 @@
 
 ```plantuml
 @startuml
-!theme plain
+' 简洁风格，避免 PlantUML 默认模板干扰
 skinparam componentStyle rectangle
 
-component "EKF2
-src/modules/ekf2" as EKF2
-component "MC/ FW 控制器
-src/modules/mc_*" as CTRL
-component "Commander
-src/modules/commander" as CMD
-component "Navigator
-src/modules/navigator" as NAV
-component "Control Allocator
-src/modules/control_allocator" as CA
-component "输出驱动
-src/drivers/*" as DRV
-component "MAVLink / ROS2
-src/modules/mavlink
-src/modules/uxrce_dds_client" as COMMS
-component "uORB
-msg/
-src/modules/uORB
-platforms/common/uORB" as UORB
+component "EKF2\nsrc/modules/ekf2" as EKF2
+component "MC/ FW 控制器\nsrc/modules/mc_*" as CTRL
+component "Commander\nsrc/modules/commander" as CMD
+component "Navigator\nsrc/modules/navigator" as NAV
+component "Control Allocator\nsrc/modules/control_allocator" as CA
+component "输出驱动\nsrc/drivers/*" as DRV
+component "MAVLink / ROS2\nsrc/modules/mavlink\nsrc/modules/uxrce_dds_client" as COMMS
+component "uORB\nmsg/\nsrc/modules/uORB\nplatforms/common/uORB" as UORB
 
 EKF2 --> CTRL : 状态 (vehicle_local_position, ...)
 CTRL --> CA : setpoint (ActuatorMotors, ...)
