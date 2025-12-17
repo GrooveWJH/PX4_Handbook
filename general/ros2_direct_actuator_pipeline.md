@@ -59,6 +59,13 @@
 
 ## 数据链路：ROS2 → PX4 → 输出
 
+若无法预览 PlantUML，可按下列链路理解数据流向：
+
+1. ROS2 通过 `px4_ros2::DirectActuatorsSetpointType` 发布归一化控制量。  
+2. uXRCE-DDS 把 `/fmu/in/actuator_motors` 与 `/fmu/in/actuator_servos` 写入 PX4 的 uORB。  
+3. `MixingOutput` 读取 uORB，并计算 `actuator_outputs`。  
+4. 输出驱动选择 PWMOut 或 DShot，将 `actuator_outputs` 写入硬件接口。  
+
 ```plantuml
 @startuml
 !theme plain
