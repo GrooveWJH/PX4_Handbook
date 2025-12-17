@@ -2,6 +2,8 @@
 
 该目录整理了在调试 HKUST NXT-Dual 以及 PX4 FMU 系列过程中沉淀的手册笔记，覆盖 PX4 架构、ROS 2 外部控制、板级适配与排障记录。
 
+如需在 GitHub 页面预览 PlantUML 生成的 SVG，请使用 Chrome 的 PlantUML extension。
+
 - `general/`：通用原理、参数与接口说明（索引见 `general/index.md`）。
 - `ros2/`：ROS 2 与 uXRCE-DDS、话题映射、桥接等说明。
 - `external_modes/`：ROS 2 External Flight Modes 解析与实战。
@@ -25,14 +27,14 @@
 | `general/estimator_status_control_flags.md` | EKF 控制标志位与 bitmask 解释。 |
 | `general/px4_parameter_generation.md` | 参数生成链路与板级差异。 |
 | `general/px4_position_topics.md` | 位置相关 uORB 话题对比。 |
-| `general/ros2_direct_actuator_pipeline.md` | ROS 2 直通执行器链路与 PWM/DShot 映射。 |
 
 ### ROS 2 与外部控制
 
 | 文档 | 说明 |
 | --- | --- |
 | `ros2/external_controller_overview[important].md` | External Controller / Offboard / External Mode 全景解析。 |
-| `general/ros2_external_controller_vs_mavros.md` | ROS2 External Controller vs MAVROS 对比。 |
+| `ros2/ros2_external_controller_vs_mavros.md` | ROS2 External Controller vs MAVROS 对比。 |
+| `ros2/ros2_direct_actuator_pipeline.md` | ROS 2 直通执行器链路与 PWM/DShot 映射。 |
 | `ros2/uxrce_dds_topic_mapping.md` | uXRCE-DDS 话题映射与配置。 |
 | `ros2/vrpn_uxrce_dds_bridge.md` | VRPN 到 uXRCE-DDS 桥接流程。 |
 | `external_modes/PX4_ROS2_Control_Interface_Explained.md` | External Flight Modes 框架解读。 |
@@ -65,9 +67,5 @@
 | `px4_fmu_v5/uXRCE说明.md` | PX4 FMU V5 的 uXRCE-DDS 对照说明。 |
 | `archive/README.md` | 历史板级配置快照索引。 |
 | `archive/board_config/` | 版本化板级配置与脚本。 |
-
-## 阅读提示
-
-如需在 GitHub 页面预览 PlantUML 生成的 SVG，请使用 Chrome 的 PlantUML extension。
 
 新增文档时，请同步更新 `general/index.md` 与本 README 的索引。
