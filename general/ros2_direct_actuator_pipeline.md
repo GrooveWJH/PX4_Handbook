@@ -105,6 +105,29 @@ PWM 的核心映射在 [`MixingOutput::output_limit_calc_single()`](https://gith
 - **舵机输出**（有 center）：
   `[-1, 0, 1]` 线性插值到 `[PWM_MAIN_MIN, PWM_MAIN_CENTER, PWM_MAIN_MAX]`
 
+**数学表达（电机，$u \in [-1, 1]$）**：
+
+$$
+PWM = PWM_{min} + \frac{u + 1}{2}\,(PWM_{max} - PWM_{min})
+$$
+
+**数学表达（舵机，$u \in [-1, 1]$，含 center）**：
+
+$$
+PWM =
+\begin{cases}
+PWM_{center} + u\,(PWM_{max} - PWM_{center}), & u \ge 0 \\
+PWM_{center} + u\,(PWM_{center} - PWM_{min}), & u < 0
+\end{cases}
+$$
+
+**示例（假设 PWM_MIN=1000, PWM_CENTER=1500, PWM_MAX=2000）**：
+
+- 电机：u = 0.2 -> PWM = 1000 + 0.6 * 1000 = 1600
+- 电机：u = -0.5 -> PWM = 1000 + 0.25 * 1000 = 1250
+- 舵机：u = 0.4 -> PWM = 1500 + 0.4 * 500 = 1700
+- 舵机：u = -0.6 -> PWM = 1500 - 0.6 * 500 = 1200
+
 **参数来源：** [`pwm_out/module.yaml#L1-L32`](https://github.com/PX4/PX4-Autopilot/blob/main/src/drivers/pwm_out/module.yaml#L1-L32)
 
 常用参数（MAIN/AUX 同理）：
@@ -137,6 +160,24 @@ DShot 是 PWMOut 的**替代输出驱动**，其输出链路仍来自 `MixingOut
   - [`DShot.cpp#L618-L635`](https://github.com/PX4/PX4-Autopilot/blob/main/src/drivers/dshot/DShot.cpp#L618-L635)
 - `DShot::updateOutputs()` 把输出值传给 `up_dshot_motor_data_set()`  
   - [`DShot.cpp#L375-L410`](https://github.com/PX4/PX4-Autopilot/blob/main/src/drivers/dshot/DShot.cpp#L375-L410)
+
+**数学表达（非 3D、单向油门，$u \in [0, 1]$）**：
+
+$$
+DSHOT_{min} = \mathrm{clamp}(DSHOT\_MIN \cdot DSHOT\_{max},
+DSHOT\_{min\_throttle}, DSHOT\_{max})
+$$
+
+$$
+DSHOT = DSHOT_{min} + u\,(DSHOT_{max} - DSHOT_{min})
+$$
+
+**示例（取整，DSHOT_MAX_THROTTLE=1999）**：
+
+- DSHOT_MIN=0.05，u=0.0 -> DSHOT_MIN_OUT=100 -> DSHOT=100
+- DSHOT_MIN=0.05，u=0.5 -> DSHOT=100 + 0.5 * 1899 = 1050
+- DSHOT_MIN=0.10，u=0.2 -> DSHOT_MIN_OUT=200 -> DSHOT=200 + 0.2 * 1799 = 560
+- DSHOT_MIN=0.10，u=1.0 -> DSHOT=1999
 
 **DShot 相关参数：** [`dshot/module.yaml#L1-L76`](https://github.com/PX4/PX4-Autopilot/blob/main/src/drivers/dshot/module.yaml#L1-L76)
 
