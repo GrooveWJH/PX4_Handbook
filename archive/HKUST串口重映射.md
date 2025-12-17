@@ -9,8 +9,8 @@
 | `boards/hkust/nxt-dual/nuttx-config/nsh/defconfig` | 打开 `CONFIG_NSH_USBCONSOLE`、`CONFIG_CDCACM_CONSOLE`，关闭 `CONFIG_USART2_SERIAL_CONSOLE` | 将 NSH 控制台转移到 USB-C (`/dev/ttyACM0`) |
 | `boards/hkust/nxt-dual/init/rc.board_defaults` | `MAV_0_CONFIG=0`、`UXRCE_DDS_CFG=101`、`SER_TEL1_BAUD=115200` | 禁用 MAVLink，默认让 TELEM1 跑 uXRCE |
 | 同文件 | `SENS_TFMINI_CFG=102` | 让 TELEM2 重新启用 TFmini/串行测距仪 |
-| `PX4_Handbook/hkust_nxt_dual/串口映射.md` | 更新 TELEM1/TELEM2/USB 行描述 | 反映最新串口用途 |
-| `PX4_Handbook/hkust_nxt_dual/uXRCE端口.md` | 改为 “TELEM1 → uXRCE” 流程 | 与实际固件一致 |
+| `PX4_Handbook/boards/hkust_nxt_dual/串口映射.md` | 更新 TELEM1/TELEM2/USB 行描述 | 反映最新串口用途 |
+| `PX4_Handbook/boards/hkust_nxt_dual/uXRCE端口.md` | 改为 “TELEM1 → uXRCE” 流程 | 与实际固件一致 |
 
 ### 2. 各端口职责（现状）
 
