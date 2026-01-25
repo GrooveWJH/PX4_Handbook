@@ -1,8 +1,16 @@
-# PX4 Enhanced Handbook
+# PX4 Handbook
+by GrooveWJH
 
 该目录整理了在调试 HKUST NXT-Dual 以及 PX4 FMU 系列过程中沉淀的手册笔记，覆盖 PX4 架构、ROS 2 外部控制、板级适配与排障记录。
 
 如需在 GitHub 页面预览 PlantUML 生成的 SVG，请使用 Chrome 的 PlantUML extension。
+
+<div align="center">
+  <a target="_blank" href="https://qm.qq.com/cgi-bin/qm/qr?k=PLjuVQR-hC7D4SXvXMRzDTX_g29WUwYY&jump_from=webapi&authKey=sS3sYlmohgAH08tmu+a/pi8i1HhWtQNoHHkZD5hBsGceM5+azxjyPnGjc/fPPs4j">
+    <img border="0" src="//pub.idqqimg.com/wpa/images/group.png" alt="PX4 Autopilot 中文社群" title="PX4 Autopilot 中文社群">
+  </a>
+  <p>PX4 Autopilot 中文社群：562665086</p>
+</div>
 
 - [core/](core/)：通用原理、参数与接口说明（索引见 [core/index.md](core/index.md)）。
 - [ros2/](ros2/)：ROS 2 与 uXRCE-DDS、External Flight Modes、话题映射、桥接等说明。
@@ -20,7 +28,6 @@
 | [core/index.md](core/index.md) | 通用文档总索引（入口）。 |
 | [core/px4_code_structure.md](core/px4_code_structure.md) | PX4 代码结构与主要模块入口。 |
 | [core/px4_nuttx_architecture.md](core/px4_nuttx_architecture.md) | PX4 与 NuttX 架构分层。 |
-| [core/mavlink_shell_commands.md](core/mavlink_shell_commands.md) | 常用 MAVLink shell 指令。 |
 | [core/obstacle_avoidance.md](core/obstacle_avoidance.md) | 避障机制与关键参数。 |
 | [core/estimator_status_control_flags.md](core/estimator_status_control_flags.md) | EKF 控制标志位与 bitmask 解释。 |
 | [core/px4_parameter_generation.md](core/px4_parameter_generation.md) | 参数生成链路与板级差异。 |

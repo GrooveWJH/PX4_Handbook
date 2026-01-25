@@ -2,6 +2,8 @@
 
 `estimator_status` uORB 话题中的 `control_mode_flags` 是一个 64 位 bitmask，用来描述 EKF2 当前在融合哪些传感器/处于什么逻辑状态。本文结合 PX4 源码（commit `3e1c499d5ddb`）完整列出每个 bit 的含义，并通过 PlantUML 示意它们如何映射到 EKF2 的观测逻辑。
 
+> 想实时查看这些控制位，可在 PX4 NSH 中运行 `listener estimator_status`，其输出的 `control_mode_flags` 与本文对照即可。
+
 ## 1. 源码出处
 
 - **消息定义**：`msg/EstimatorStatus.msg`（`control_mode_flags` 及各 bit 的枚举常量）。

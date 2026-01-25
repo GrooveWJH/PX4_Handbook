@@ -4,7 +4,6 @@
 | --- | --- |
 | `px4_code_structure.md` | PX4 代码结构与主要模块入口。 |
 | `px4_nuttx_architecture.md` | PX4 与 NuttX 架构分层。 |
-| `mavlink_shell_commands.md` | 常用 MAVLink shell 指令。 |
 | `obstacle_avoidance.md` | 避障机制与关键参数。 |
 | `estimator_status_control_flags.md` | EKF 控制标志位与 bitmask 解释。 |
 | `px4_parameter_generation.md` | 参数生成链路与板级差异。 |
