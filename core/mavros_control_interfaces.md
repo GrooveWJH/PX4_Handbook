@@ -1,165 +1,118 @@
-# MAVROS 控制接口与 PX4 控制链详解
+# MAVROS 控制接口与 PX4 控制链
 
-本文档详细介绍了 MAVROS 中用于无人机控制的主要 Topic 接口，并清晰地将它们映射到 PX4 的内部控制链环节中，帮助开发者理解从上层指令到电机输出的完整流程。
+## 目录
 
-## 控制链概览
-
-![PX4 控制架构](https://docs.px4.io/main/assets/mc_control_arch.DPb5OeqV.jpg)
-
-
-PX4 的控制架构是一个级联控制器，其基本流程如下：
-
-**位置 → 速度 → 加速度 → 姿态 → 角速度 → 力矩/推力 → 电机输出**
-
-MAVROS 提供了不同层级的接口，允许开发者在控制链的任意环节注入设定点（Setpoint）。
-
-```plantuml
-@startuml
-!theme vibrant
-title MAVROS 接口与 PX4 控制链映射
-
-package "MAVROS Setpoint Topics" {
-    cloud "/mavros/setpoint_position/local" as PosTopic
-    cloud "/mavros/setpoint_velocity/cmd_vel" as VelTopic
-    cloud "/mavros/setpoint_raw/local" as RawLocalTopic
-    cloud "/mavros/setpoint_raw/attitude" as RawAttTopic
-    cloud "/mavros/setpoint_attitude/cmd_vel" as AttVelTopic
-    cloud "/mavros/setpoint_attitude/thrust" as ThrustTopic
-    cloud "/mavros/setpoint_actuator_control" as ActuatorCtrlTopic
-    cloud "/mavros/motor_control/setpoint" as MotorSetpoint #Red
-}
-
-
-package "PX4 Control Cascade" {
-    rectangle "Position\nControl" as PosCtrl
-    rectangle "Velocity\nControl" as VelCtrl
-    rectangle "Acceleration\nSetpoint" as AccelSp
-    rectangle "Attitude\nControl" as AttCtrl
-    rectangle "Angular Rate\nControl" as RateCtrl
-    rectangle "Mixer" as Mixer
-    rectangle "Actuators" as Actuators
-
-    PosCtrl -> VelCtrl : V_sp (速度设定点)
-    VelCtrl -> AccelSp : A_sp (加速度设定点)
-    AccelSp -> AttCtrl : q_sp (姿态设定点)
-    AttCtrl -> RateCtrl : Ω_sp (角速度设定点)
-    RateCtrl -> Mixer : δ (力矩/推力指令)
-    Mixer -> Actuators : PWM (电机指令)
-}
-
-PosTopic --> PosCtrl
-VelTopic --> VelCtrl
-
-RawLocalTopic ..> PosCtrl : (if position enabled)
-RawLocalTopic ..> VelCtrl : (if velocity enabled)
-RawLocalTopic ..> AccelSp : (if acceleration enabled)
-
-RawAttTopic --> AttCtrl : (Attitude)
-RawAttTopic --> RateCtrl : (Body Rates)
-ThrustTopic --> Mixer : (Thrust)
-
-AttVelTopic --> RateCtrl
-
-ActuatorCtrlTopic --> Mixer
-
-MotorSetpoint ---> Actuators
-note right of MotorSetpoint: 危险: 绕过所有控制器!
-
-@enduml
-```
-
-## MAVROS 控制接口总览
-
-| MAVROS 接口 | 发送的 msg 类型 | msg 包含的控制信息 | 对应 PX4 控制链位置 | 控制级别 |
-| :--- | :--- | :--- | :--- | :--- |
-| `/mavros/setpoint_position/local` | `geometry_msgs/PoseStamped` | 位置 + 偏航姿态(yaw) | 位置控制 (Position Control) | 最高层/最外环 |
-| `/mavros/setpoint_velocity/cmd_vel` | `geometry_msgs/Twist` | 线速度 + 角速度 | 速度控制 (Velocity Control) | 外环 |
-| `/mavros/setpoint_raw/local` | `mavros_msgs/PositionTarget` | 位置/速度/加速度/姿态的混合控制 | 位置/速度/加速度选择器 | 外环(灵活) |
-| `/mavros/setpoint_raw/attitude` | `mavros_msgs/AttitudeTarget` | 姿态 + 推力 + 角速度 | 姿态控制 (Attitude Control) | 中环 |
-| `/mavros/setpoint_attitude/cmd_vel` | `geometry_msgs/TwistStamped` | 姿态角速度 | 角速度控制 (Angular Rate Control) | 内环 |
-| `/mavros/setpoint_attitude/thrust` | `geometry_msgs/Point` | 归一化推力 | 推力控制 | 内环(与姿态耦合) |
-| `/mavros/setpoint_actuator_control` | `mavros_msgs/ActuatorControl` | 期望力矩、推力 | Mixer 输入 | 最内层(控制器输出) |
-| `/mavros/motor_control/setpoint` | `mavros_msgs/ActuatorControl` | 独立的电机/舵机值 | 直接驱动电机 | 最底层(绕过Mixer) |
+- [1. 概览与适用场景](#1-概览与适用场景)
+- [2. 控制链路总览](#2-控制链路总览)
+- [3. 深入解析：Topic → MAVLink → uORB](#3-深入解析topic--mavlink--uorb)
+  - [3.1 位置/速度层](#31-位置速度层)
+  - [3.2 姿态/角速度/推力层](#32-姿态角速度推力层)
+  - [3.3 力矩与电机层](#33-力矩与电机层)
+- [4. 实操与排障清单](#4-实操与排障清单)
+- [5. 术语与参考](#5-术语与参考)
 
 ---
 
-## 各接口详解
+## 1. 概览与适用场景
 
-### 1. 位置控制 (Position Control)
+本文定位于 ROS1 + MAVROS 使用者，梳理各类 `/mavros/setpoint_*` Topic 与 PX4 控制链的对应关系，以及底层在 `src/modules/mavlink/mavlink_receiver.cpp` 中的处理逻辑。阅读前需了解 PX4 Offboard 模式以及 MAVROS 插件的基础封装。
 
-- **Topic:** `/mavros/setpoint_position/local`
-- **消息类型:** `geometry_msgs/PoseStamped`
-- **Msg 内容:**
-  - `position.x, y, z`: 期望的世界系(Inertial Frame)位置 `X_sp`。
-  - `orientation`: 期望的姿态四元数，通常只使用 `yaw` (偏航角)，`roll` 和 `pitch` 会被 PX4 位置控制器自动计算覆盖。
-- **对应 PX4 环节:** **位置控制器 (Position Control)**。这是最高层级的控制，对应控制链图的最左端。
+## 2. 控制链路总览
 
-### 2. 速度控制 (Velocity Control)
+PX4 多旋翼控制链是级联结构：**位置 → 速度 → 加速度 → 姿态 → 角速度 → Mixer → 执行机构**。MAVROS 在不同层级提供接入口。
 
-- **Topic:** `/mavros/setpoint_velocity/cmd_vel`
-- **消息类型:** `geometry_msgs/Twist`
-- **Msg 内容:**
-  - `linear.x, y, z`: 期望的机体系(Body Frame)线速度 `V_sp`。
-  - `angular.z`: 期望的偏航角速度。
-- **对应 PX4 环节:** **速度控制器 (Velocity Control)**。此接口绕过了位置控制环，直接为速度PID控制器提供输入。
+![PX4 控制架构](https://docs.px4.io/main/assets/mc_control_arch.DPb5OeqV.jpg)
 
-### 3. 混合控制 (Position/Velocity/Acceleration)
+```plantuml
+@startuml
+actor "ROS1 Companion\n(MAVROS Node)" as ROS
+rectangle "MAVLink\n(MAVROS ↔ PX4)" as MAV
+rectangle "offboard_control_mode\n+ setpoint uORB" as UORB
+rectangle "PX4 Controllers\n(Position/Velocity/Attitude/Rate)" as CTRL
+rectangle "Control Allocator /\nMixer" as MIX
 
-- **Topic:** `/mavros/setpoint_raw/local`
-- **消息类型:** `mavros_msgs/PositionTarget`
-- **Msg 内容:** 这是一个功能非常强大的接口，通过 `type_mask` 字段可以自由组合控制模式。
-  - `position`: 位置设定点 `X_sp`。
-  - `velocity`: 速度设定点 `V_sp`。
-  - `acceleration_or_force`: 加速度设定点 `A_sp`。
-  - `yaw`, `yaw_rate`: 偏航角或偏航角速度。
-  - `type_mask`: 位掩码，用于指定哪些字段是有效的，从而决定无人机的控制模式。
-- **对应 PX4 环节:** **位置/速度/加速度 多级控制选择器**。这是唯一可以直接向 PX4 输入加速度指令 `A_sp` 的 MAVROS 接口。
+ROS --> MAV : SET_* / COMMAND_LONG
+MAV --> UORB : trajectory / attitude / actuator
+UORB --> CTRL
+CTRL --> MIX
+MIX --> "PWM / DShot"
+@enduml
+```
 
-### 4. 姿态控制 (Attitude Control)
+| Topic | MAVROS Msg | MAVLink 命令 | PX4 接收路径 | 控制层级 |
+| --- | --- | --- | --- | --- |
+| `/mavros/setpoint_position/local` | `geometry_msgs/PoseStamped` | `SET_POSITION_TARGET_LOCAL_NED` | [`handle_message_set_position_target_local_ned`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1029-L1212) | 位置/速度/加速度 |
+| `/mavros/setpoint_velocity/cmd_vel` | `geometry_msgs/Twist` | 同上（Velocity 字段） | 同上 | 速度 |
+| `/mavros/setpoint_raw/local` | `mavros_msgs/PositionTarget` | `SET_POSITION_TARGET_LOCAL_NED / GLOBAL_INT` | 同上 | 位置/速度/加速度任选 |
+| `/mavros/setpoint_raw/attitude` | `mavros_msgs/AttitudeTarget` | `SET_ATTITUDE_TARGET` | [`handle_message_set_attitude_target`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1437-L1588) | 姿态 + 角速 + 推力 |
+| `/mavros/setpoint_attitude/cmd_vel` | `geometry_msgs/TwistStamped` | `SET_ATTITUDE_TARGET` (`type_mask` 仅角速) | 同上 | 角速度 |
+| `/mavros/setpoint_attitude/thrust` | `geometry_msgs/Point` | `SET_ATTITUDE_TARGET` (`thrust` 字段) | 同上 | 推力 |
+| `/mavros/setpoint_actuator_control` | `mavros_msgs/ActuatorControl` | `SET_ACTUATOR_CONTROL_TARGET` | [`handle_message_set_actuator_control_target`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1795-L1888) | 力矩/推力 (Mixer 输入) |
+| `/mavros/motor_control/setpoint` | `mavros_msgs/ActuatorControl` | `COMMAND_LONG` → `VEHICLE_CMD_DO_SET_ACTUATOR` | [`handle_message_command_long`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L2305-L2695) | 直接电机输出（无保护） |
 
-- **Topic:** `/mavros/setpoint_raw/attitude`
-- **消息类型:** `mavros_msgs/AttitudeTarget`
-- **Msg 内容:**
-  - `orientation`: 期望的姿态四元数 `q_sp`。
-  - `body_rate`: 期望的机体系角速度 `Ω_sp` (p, q, r)。
-  - `thrust`: 期望的推力，是一个 `0..1` 的归一化值 `δ_Tsp`。
-  - `type_mask`: 用于指定是控制姿态还是角速度。
-- **对应 PX4 环节:** **姿态控制器 (Attitude Control)**。输入图中间的 `q_sp`。如果提供了 `body_rate`，则直接进入下一级的角速度控制。
+## 3. 深入解析：Topic → MAVLink → uORB
 
-### 5. 角速度控制 (Angular Rate Control)
+### 3.1 位置/速度层
 
-- **Topic:** `/mavros/setpoint_attitude/cmd_vel`
-- **消息类型:** `geometry_msgs/TwistStamped`
-- **Msg 内容:**
-  - `angular.x`: 期望的滚转角速度 (p)。
-  - `angular.y`: 期望的俯仰角速度 (q)。
-  - `angular.z`: 期望的偏航角速度 (r)。
-- **对应 PX4 环节:** **角速度控制器 (Angular Rate Control)**。直接为最内环的角速度 PID 控制器提供输入 `Ω_sp`。
+#### `/mavros/setpoint_position/local` & `/mavros/setpoint_velocity/cmd_vel`
 
-### 6. 推力控制 (Thrust Control)
+- MAVROS 的 `setpoint_position`、`setpoint_velocity` 插件会把 Pose/Twist 转换为 `SET_POSITION_TARGET_LOCAL_NED` 帧，并设置 `type_mask` 来选择位置或速度字段。
+- PX4 通过 `MavlinkReceiver::handle_message_set_position_target_local_ned()` 将这些字段写入 `trajectory_setpoint` 和 `offboard_control_mode` uORB（参考 [源码](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1029-L1212)）。
+- 关键细节：
+  - `type_mask` 决定 Position、Velocity、Acceleration 哪些有效；PX4 会根据是否含 `NAN` 来设置 `offboard_control_mode.position/velocity/acceleration`。
+  - 若 `coordinate_frame=MAV_FRAME_BODY_NED`，PX4 使用当前姿态矩阵将机体系速度/加速度旋转为 NED。
+  - 只有当前导航状态为 `Offboard` 时，PX4 才会真正发布 `trajectory_setpoint`，否则仅刷新模式守护（防止 failsafe）。
 
-- **Topic:** `/mavros/setpoint_attitude/thrust`
-- **消息类型:** `geometry_msgs/Point`
-- **Msg 内容:**
-  - `z`: 期望的推力，是一个 `0..1` 的归一化值 `δ_Tsp`。(`x` 和 `y` 字段被忽略)
-- **对应 PX4 环节:** **Mixer的推力输入**。此接口通常与姿态控制接口配合使用，单独发送推力没有意义。
+#### `/mavros/setpoint_raw/local`
 
-### 7. 力矩/推力控制 (Actuator Controls)
+- `mavros_msgs/PositionTarget` 可以同时携带位置、速度、加速度、偏航和偏航速率，利用 `type_mask` 按位屏蔽。
+- 同一处理函数负责 GLOBAL / LOCAL 版本，若使用全球坐标，则先通过 `vehicle_local_position` 的原点将经纬度转换到本地米制。
+- 若设置 `POSITION_TARGET_TYPEMASK_FORCE_SET`，PX4 会拒绝（未实现力控制），相关报错会被 `mavlink_log_critical` 打印。
 
-- **Topic:** `/mavros/setpoint_actuator_control`
-- **消息类型:** `mavros_msgs/ActuatorControl`
-- **Msg 内容:**
-  - `controls[0]`: 滚转力矩 (Roll torque)
-  - `controls[1]`: 俯仰力矩 (Pitch torque)
-  - `controls[2]`: 偏航力矩 (Yaw torque)
-  - `controls[3]`: 总推力 (Collective thrust)
-  - `controls[4-7]`: 其他控制量
-- **对应 PX4 环节:** **Mixer的输入**。此接口绕过了所有姿态和角速度控制器，直接向 Mixer 发送滚转、俯仰、偏航的力矩和总推力指令 `δ_Asp, δ_Esp, δ_Rsp, δ_Tsp`。这需要外部程序自己完成姿态控制解算。
+### 3.2 姿态/角速度/推力层
 
-### 8. 电机直接控制 (Direct Motor Control)
+#### `/mavros/setpoint_raw/attitude`
 
-- **Topic:** `/mavros/motor_control/setpoint`
-- **消息类型:** `mavros_msgs/ActuatorControl`
-- **Msg 内容:** 直接指定每个电机（或执行器）的输出值。
-- **对应 PX4 环节:** **直接驱动电机 (Actuators)**。
-- **⚠️ 警告:** 这是最危险的接口，它完全绕过了 PX4 中包括 Mixer 在内的所有控制和安全逻辑。仅应在非常特殊的测试和调试场景下使用。错误的使用极有可能导致飞行器失控和损坏。
+- MAVROS 把 `mavros_msgs/AttitudeTarget` 编码为 `SET_ATTITUDE_TARGET` 帧；`type_mask` 决定是否使用姿态或角速度字段。
+- PX4 在 [`handle_message_set_attitude_target`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1437-L1588) 中：
+  - 解析四元数、body_rate、thrust。
+  - 将姿态命令写入 `vehicle_attitude_setpoint`，同时写 `vehicle_rates_setpoint`（若 `body_rate` 可用）。
+  - 使用 `offboard_control_mode.attitude/rate` 指示当前外部控制层级，防止 failsafe。
+
+#### `/mavros/setpoint_attitude/cmd_vel` & `/mavros/setpoint_attitude/thrust`
+
+- 这两个 Topic 只是对 `SET_ATTITUDE_TARGET` 的轻量封装：`cmd_vel` 只填 `body_rate`，`thrust` 只填 `thrust` 字段，姿态部分置空。
+- 因此它们与上一接口共享同一处理逻辑；在 `type_mask` 中屏蔽未使用字段，即可只接管角速度或推力。
+
+### 3.3 力矩与电机层
+
+#### `/mavros/setpoint_actuator_control`
+
+- MAVROS 将 `mavros_msgs/ActuatorControl` 转为 `SET_ACTUATOR_CONTROL_TARGET` 帧。
+- PX4 在 [`handle_message_set_actuator_control_target`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1795-L1888) 中：
+  - 直接把 `controls[0..3]` 写入 `vehicle_attitude_setpoint` 的 `thrust_body` / `control` 数组，并标记 `offboard_control_mode.body_rate = true`。
+  - 绕过姿态/速度控制器，要求外部算法自行闭环并提供 roll/pitch/yaw 力矩 + 集体推力（或其它控制量）。
+  - 该路径仍然会经过 PX4 Mixer 和输出限幅，因此相比直接写电机更安全。
+
+#### `/mavros/motor_control/setpoint`
+
+- 该 Topic 通过 `COMMAND_LONG (VEHICLE_CMD_DO_SET_ACTUATOR)` 直接下发执行器值。PX4 在 [`handle_message_command_long`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L2305-L2695) 中将 `param1..param7` 映射到 `actuator_controls` 或直接写 `actuator_servos/actuator_motors`。
+- 一旦启用，该通道完全绕过 PX4 控制器、Mixer、Failsafe，极易导致失控。仅用于台架测试或自定义固件调试。
+
+## 4. 实操与排障清单
+
+| 场景 | 诊断步骤 | 对应源码/话题 | 建议 |
+| --- | --- | --- | --- |
+| Offboard 1 秒内掉线 | `listener offboard_control_mode` 检查时间戳；确认 `/mavros/setpoint_*` 发布 ≥2 Hz | [`offboard_control_mode.msg`](https://github.com/PX4/PX4-Autopilot/blob/main/msg/OffboardControlMode.msg) | 使用 `ros::Rate(20)` 发布；必要时启用 `SYS_COMPANION=CompanionLink` 提高带宽 |
+| 发送位置但机体无响应 | 检查 `type_mask` 是否屏蔽了位置字段；`rosbag` 查看 `MSG` | [`handle_message_set_position_target_local_ned`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1029-L1212) | 若使用 `setpoint_raw/local`，确保 `POSITION_TARGET_TYPEMASK_X_IGNORE` 置 0 |
+| 姿态 setpoint 被覆盖 | 监听 `vehicle_attitude_setpoint`，确认非 NAN；若 `offboard_control_mode` 未设置 attitude=1，PX4 会自动退回速度环 | [`handle_message_set_attitude_target`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1437-L1588) | 发布 `AttitudeTarget` 时记得设置 `type_mask`，不要混淆姿态/角速字段 |
+| 使用 `/mavros/motor_control` 后无法复位 | PX4 认为外部仍在驱动，需要重新进入 Manual/Offboard | [`handle_message_command_long`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L2305-L2695) | 谨慎使用，完成测试后重启飞控或发送零值命令 |
+
+## 5. 术语与参考
+
+- **Offboard Control Mode**：PX4 的 uORB 消息，用于声明外部控制激活了哪些层（位置/速度/姿态/角速/推力）。MAVROS 话题被解析后都会刷新该结构，以防止 offboard failsafe。
+- **MAVLink Type Mask**：`mavros_msgs/PositionTarget` / `AttitudeTarget` 使用的位掩码，用于屏蔽无效字段，详见 [MAVLink spec](https://mavlink.io/en/messages/common.html)。
+- **参考资料**：
+  - PX4 官方控制架构图：`docs/en/config_mc/` → `mc_control_arch.png`
+  - MAVROS 插件源：`mavros/mavros_extras/src/plugins/**`
+  - PX4 MAVLink 解析：[`src/modules/mavlink/mavlink_receiver.cpp`](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp)
