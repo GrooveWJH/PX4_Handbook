@@ -14,6 +14,7 @@ by GrooveWJH
 
 - [core/](core/)：通用原理、参数与接口说明（索引见 [core/index.md](core/index.md)）。
 - [ros2/](ros2/)：ROS 2 与 uXRCE-DDS、External Flight Modes、话题映射、桥接等说明。
+- [rl/](rl/)：强化学习控制器与 RAPTOR 文档（索引见 [rl/index.md](rl/index.md)）。
 - [boards/](boards/)：板级适配与对照（[boards/hkust_nxt_dual/](boards/hkust_nxt_dual/)、[boards/px4_fmu_v5/](boards/px4_fmu_v5/)）。
 - [plans/](plans/)：方案设计与技术报告。
 - [diagnostics/](diagnostics/)：故障排查记录。
@@ -45,6 +46,16 @@ by GrooveWJH
 | [ros2/external_modes/PX4_ROS2_Control_Interface_Explained.md](ros2/external_modes/PX4_ROS2_Control_Interface_Explained.md) | External Flight Modes 框架解读。 |
 | [ros2/external_modes/MatrixHoverExternalMode.md](ros2/external_modes/MatrixHoverExternalMode.md) | Matrix Hover 外部模式实战。 |
 
+### RL / RAPTOR
+
+| 文档 | 说明 |
+| --- | --- |
+| [rl/index.md](rl/index.md) | RL 分区入口。 |
+| [rl/raptor/index.md](rl/raptor/index.md) | RAPTOR 文档入口与阅读顺序。 |
+| [rl/raptor/raptor_runtime_logic_and_control.md](rl/raptor/raptor_runtime_logic_and_control.md) | RAPTOR 输入/控制律/输出与轨迹协同。 |
+| [rl/raptor/raptor_build_deploy_and_flight_sop.md](rl/raptor/raptor_build_deploy_and_flight_sop.md) | 从 px4board 到首飞的实机 SOP。 |
+| [rl/raptor/raptor_mode_gates_troubleshooting_and_perf.md](rl/raptor/raptor_mode_gates_troubleshooting_and_perf.md) | 模式门限对比、定位门限抖动与 CPU 负载排障。 |
+
 ### HKUST NXT-Dual 板级
 
 | 文档 | 说明 |
@@ -73,4 +84,4 @@ by GrooveWJH
 | [archive/README.md](archive/README.md) | 历史板级配置快照索引。 |
 | [archive/board_config/](archive/board_config/) | 版本化板级配置与脚本。 |
 
-新增文档时，请同步更新 [core/index.md](core/index.md) 与本 README 的索引。
+新增文档时，请同步更新对应分区索引（如 [core/index.md](core/index.md)、[rl/index.md](rl/index.md)）与本 README 的索引。
