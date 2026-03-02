@@ -193,6 +193,67 @@ RAPTOR 不处理：
 
 它做的是“给定状态 + 参考轨迹 -> 推理输出执行器命令”。
 
+### 3.9 `MC_RAPTOR_OFFB` 深入理解：为什么要有这个参数
+
+`MC_RAPTOR_OFFB` 的本质不是“改一套控制律”，而是“改 RAPTOR 的模式接入入口”。
+
+#### 3.9.1 `MC_RAPTOR_OFFB=0` 时发生什么
+
+- RAPTOR 以普通 external mode 注册。
+- 实际飞行入口通常是 `EXT1`（或 QGC 里显示的 RAPTOR 名称）。
+- 只有在 `vehicle_status.nav_state == raptor_mode_id` 时，RAPTOR 才会 `active=true` 并发布电机控制。
+
+#### 3.9.2 `MC_RAPTOR_OFFB=1` 时发生什么
+
+- RAPTOR 在注册请求里设置 `enable_replace_internal_mode=true`，并指定 `replace_internal_mode=OFFBOARD`。
+- Commander 会把“用户选择 OFFBOARD”映射到 RAPTOR 对应 external mode（不是简单改名）。
+- 这意味着用户在地面站或脚本里走 `offboard` 入口，也能激活 RAPTOR。
+
+可以理解为：
+
+- `OFFB=0`：RAPTOR 走 `EXT*` 入口。
+- `OFFB=1`：RAPTOR 接管 OFFBOARD 入口。
+
+#### 3.9.3 `MC_RAPTOR_OFFB` 与 `mc_raptor mode set <extref|intref|hold>` 的关系
+
+两者是不同层级：
+
+1. `MC_RAPTOR_OFFB` 决定“怎么进入 RAPTOR 模式”（Commander 模式映射层）。
+2. `mc_raptor mode set ...` 决定“进入 RAPTOR 后参考源怎么选”（RAPTOR 运行时层）。
+
+因此无论 `OFFB=0` 还是 `OFFB=1`，下面三条语义都不变：
+
+- `mode set extref`：使用外部 `trajectory_setpoint`，超时回定点保持。
+- `mode set intref`：使用内部轨迹（lissajous/circle/插件）。
+- `mode set hold`：捕获当前位姿并保持。
+
+#### 3.9.4 为什么工程上经常必须开 `OFFB=1`
+
+经典场景：已有 ROS2/MAVLink 工程栈深度绑定 Offboard 工作流，包含以下固化逻辑：
+
+- 伴随机通过固定接口请求 `offboard` 模式。
+- 地面站/任务脚本把“进入 offboard”作为统一状态机步骤。
+- 失链处理、联调脚本、日志分析都围绕 offboard 状态展开。
+
+这时如果要求改成 `EXT1`，通常会牵一大片上层逻辑。  
+开启 `MC_RAPTOR_OFFB=1` 后，可以在不改上层“Offboard 入口协议”的情况下，把底层执行器切换为 RAPTOR。
+
+这就是它的核心价值：兼容既有 Offboard 生态，降低系统改造成本。
+
+#### 3.9.5 实机验证建议（最小闭环）
+
+1. 设 `MC_RAPTOR_OFFB=1`，重启。
+2. 正常执行 Offboard 进入流程。
+3. 在飞行中查看：
+   - `listener vehicle_status`：确认当前 nav_state 处于 Offboard 路径。
+   - `mc_raptor status`：确认 `reference mode/source` 与预期一致。
+   - `listener raptor_status`：确认 `active=true` 且状态持续刷新。
+4. 分别执行：
+   - `mc_raptor mode set hold`
+   - `mc_raptor mode set intref`
+   - `mc_raptor mode set extref`
+   观察行为与 `OFFB=0` 场景一致。
+
 ---
 
 ## 4. 实操 / 对比 / 排障（按需选择）
