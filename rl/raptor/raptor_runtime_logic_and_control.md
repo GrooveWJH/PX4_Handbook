@@ -120,6 +120,47 @@ RAPTOR 当前对外部 setpoint 的有效性检查只要求以下字段 finite�
 
 结论：EGO Planner 输出到 acceleration/jerk 也没问题，但 RAPTOR 目前不会直接消费这两组量。
 
+### 3.3A extref / offboard 输入接口映射
+
+当 RAPTOR 运行在 `extref` 时，它读取的唯一目标源就是 `trajectory_setpoint`。  
+因此外部接口选择标准非常硬：谁能把完整目标稳定写进 uORB `trajectory_setpoint`，谁才是 RAPTOR external reference 的有效上游。
+
+需要特别强调的是：当前 PX4 MAVLink 接收链并不会在“任何 RAPTOR 模式”下自动把标准 Offboard 目标转成 `trajectory_setpoint`。  
+`SET_POSITION_TARGET_LOCAL_NED` 与 `SET_POSITION_TARGET_GLOBAL_INT` 确实都会先解析消息并发布 `offboard_control_mode`，但只有在
+`vehicle_status.nav_state == NAVIGATION_STATE_OFFBOARD` 时，才会真正发布 `trajectory_setpoint`。
+
+这会带来一个关键后果：
+
+- `MC_RAPTOR_OFFB=0` 时，RAPTOR 运行在 `EXT1/EXT2/...`，不是 `OFFBOARD`
+- `MC_RAPTOR_OFFB=1` 时，RAPTOR 替换了 OFFBOARD 入口，但实际运行态仍是 external mode id，不是 `OFFBOARD`
+
+所以无论 `OFFB=0` 还是 `OFFB=1`，只要 RAPTOR 真正处于 external mode 运行态，标准 MAVLink Offboard setpoint 默认都不是一个可靠的 extref 上游。
+
+这也意味着下面这些常见理解都是不准确的：
+
+- “`OFFB=1` 后可以直接复用 MAVROS `setpoint_raw/local` 驱动 RAPTOR”
+- “进入 RAPTOR external mode 后继续发 `SET_POSITION_TARGET_LOCAL_NED` 就会自然落到 `trajectory_setpoint`”
+
+当前源码下，RAPTOR extref 的可用上游建议如下：
+
+| 上游方式 | 是否直接写 `trajectory_setpoint` | RAPTOR extref 是否可靠可用 | 结论 |
+| --- | --- | --- | --- |
+| 标准 MAVLink `SET_POSITION_TARGET_LOCAL_NED` | 否，受 `nav_state == OFFBOARD` 门限约束 | 否 | 不推荐 |
+| 标准 MAVLink `SET_POSITION_TARGET_GLOBAL_INT` | 否，受 `nav_state == OFFBOARD` 门限约束 | 否 | 不推荐 |
+| MAVLink `SET_ATTITUDE_TARGET` | 否，写 attitude/rates 话题 | 否 | 不适用于 extref |
+| ROS 2 / uXRCE-DDS 直接发布 `trajectory_setpoint` | 是 | 是 | 推荐 |
+| RAPTOR `INTREF` 内部轨迹 | 不依赖外部 setpoint | 是 | 推荐用于自包含验证 |
+
+如果你需要完整问题分析与方案取舍，直接看：
+
+- [`raptor_offboard_replacement_mavlink_limits_and_ros2_solutions.md`](raptor_offboard_replacement_mavlink_limits_and_ros2_solutions.md)
+
+源码对应关系：
+
+- [`mavlink_receiver.cpp` `handle_message_set_position_target_local_ned`](https://github.com/GrooveWJH/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1036-L1155)
+- [`mavlink_receiver.cpp` `handle_message_set_position_target_global_int`](https://github.com/GrooveWJH/PX4-Autopilot/blob/main/src/modules/mavlink/mavlink_receiver.cpp#L1158-L1274)
+- [`raptor_reference_pipeline.cpp` 外部 setpoint 读取与 finite 校验](https://github.com/GrooveWJH/PX4-Autopilot/blob/main/src/modules/mc_raptor/core/raptor_reference_pipeline.cpp#L58-L104)
+
 ### 3.4 观测构造与控制律输入
 
 policy 观测向量由 5 组信息构成：
@@ -236,16 +277,24 @@ RAPTOR 不处理：
 - 失链处理、联调脚本、日志分析都围绕 offboard 状态展开。
 
 这时如果要求改成 `EXT1`，通常会牵一大片上层逻辑。  
-开启 `MC_RAPTOR_OFFB=1` 后，可以在不改上层“Offboard 入口协议”的情况下，把底层执行器切换为 RAPTOR。
+开启 `MC_RAPTOR_OFFB=1` 后，确实可以在不改上层“Offboard 入口协议”的情况下，用 `OFFBOARD` 这个入口激活 RAPTOR。
 
-这就是它的核心价值：兼容既有 Offboard 生态，降低系统改造成本。
+但边界必须说清楚：
+
+- 它兼容的是“进入模式的入口”
+- 它当前并不自动兼容“标准 MAVLink Offboard setpoint 传输链”
+
+所以它的核心价值是降低“模式切换接口”的改造成本，而不是保证 `SET_POSITION_TARGET_*` 在 RAPTOR active 时仍然自然落到 `trajectory_setpoint`。  
+如果你需要外部电脑持续给 RAPTOR 喂目标，当前不改 PX4 源码的首选方案是 ROS 2 / DDS。详见：
+
+- [`raptor_offboard_replacement_mavlink_limits_and_ros2_solutions.md`](raptor_offboard_replacement_mavlink_limits_and_ros2_solutions.md)
 
 #### 3.9.5 实机验证建议（最小闭环）
 
 1. 设 `MC_RAPTOR_OFFB=1`，重启。
 2. 正常执行 Offboard 进入流程。
 3. 在飞行中查看：
-   - `listener vehicle_status`：确认当前 nav_state 处于 Offboard 路径。
+   - `listener vehicle_status`：确认当前已进入 RAPTOR 对应的 Offboard 替代路径。
    - `mc_raptor status`：确认 `reference mode/source` 与预期一致。
    - `listener raptor_status`：确认 `active=true` 且状态持续刷新。
 4. 分别执行：
@@ -253,6 +302,8 @@ RAPTOR 不处理：
    - `mc_raptor mode set intref`
    - `mc_raptor mode set extref`
    观察行为与 `OFFB=0` 场景一致。
+
+如果你关心的是“标准 MAVLink Offboard setpoint 是否继续有效”，还要额外检查 `trajectory_setpoint` 是否持续更新；当前源码下这一步通常不会自动成立。
 
 ---
 

@@ -182,10 +182,20 @@ mc_raptor status
 
 | `MC_RAPTOR_OFFB` | `MC_RAPTOR_INTREF` | 入口模式 | 轨迹来源 | 推荐场景 |
 | ---: | ---: | --- | --- | --- |
-| 0 | 0 | `EXT1`/RAPTOR external | 外部 `trajectory_setpoint`（失联回退保持） | 你当前“只接动捕，不走 offboard 控制” |
+| 0 | 0 | `EXT1`/RAPTOR external | 外部 `trajectory_setpoint`（通常由 ROS 2 / DDS 直接写入） | 外部电脑给参考，RAPTOR 执行控制 |
 | 0 | 1 | `EXT1`/RAPTOR external | 内置 Lissajous | 机载自参考验证 |
-| 1 | 0 | `OFFBOARD`（被 RAPTOR 替换） | 外部 `trajectory_setpoint` | 复用现有 offboard 流程 |
+| 1 | 0 | `OFFBOARD`（被 RAPTOR 替换） | 外部 `trajectory_setpoint`（不等于标准 MAVLink Offboard setpoint） | 仅在你明确理解替换语义时使用 |
 | 1 | 1 | `OFFBOARD`（被 RAPTOR 替换） | 内置 Lissajous | 用 OFFBOARD 入口触发内置轨迹 |
+
+关键澄清：
+
+- RAPTOR extref 真正消费的是 uORB `trajectory_setpoint`
+- 当前源码下，标准 MAVLink Offboard setpoint 并不能在 RAPTOR active 时可靠写入这条话题
+- 如果你要“不改 PX4 源码”地给 RAPTOR 喂外部参考，推荐直接使用 ROS 2 / uXRCE-DDS
+
+完整分析见：
+
+- [`raptor_offboard_replacement_mavlink_limits_and_ros2_solutions.md`](raptor_offboard_replacement_mavlink_limits_and_ros2_solutions.md)
 
 最小设置命令：
 
