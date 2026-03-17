@@ -3,7 +3,7 @@ by GrooveWJH
 
 该目录整理了在调试 HKUST NXT-Dual 以及 PX4 FMU 系列过程中沉淀的手册笔记，覆盖 PX4 架构、ROS 2 外部控制、板级适配与排障记录。
 
-如需在 GitHub 页面预览 PlantUML 生成的 SVG，请使用 Chrome 的 PlantUML extension。
+如需在 GitHub 页面预览 PlantUML 生成的 SVG，请使用 Chrome 的 [PlantUML extension](https://chromewebstore.google.com/detail/plantuml-extension/jbdmdkcjhnceacdkahhpfpijcohplgaj?pli=1)。
 
 <div align="center">
   <a target="_blank" href="https://qm.qq.com/cgi-bin/qm/qr?k=PLjuVQR-hC7D4SXvXMRzDTX_g29WUwYY&jump_from=webapi&authKey=sS3sYlmohgAH08tmu+a/pi8i1HhWtQNoHHkZD5hBsGceM5+azxjyPnGjc/fPPs4j">
