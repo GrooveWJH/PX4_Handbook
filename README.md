@@ -54,6 +54,7 @@ by GrooveWJH
 | [rl/raptor/index.md](rl/raptor/index.md) | RAPTOR 文档入口与阅读顺序。 |
 | [rl/raptor/raptor_runtime_logic_and_control.md](rl/raptor/raptor_runtime_logic_and_control.md) | RAPTOR 输入/控制律/输出与轨迹协同。 |
 | [rl/raptor/raptor_offboard_replacement_mavlink_limits_and_ros2_solutions.md](rl/raptor/raptor_offboard_replacement_mavlink_limits_and_ros2_solutions.md) | RAPTOR 替换 OFFBOARD 后的 MAVLink 限制与 ROS 2 方案。 |
+| [rl/raptor/raptor_offboard_compatibility_decision_guide.md](rl/raptor/raptor_offboard_compatibility_decision_guide.md) | RAPTOR Offboard 兼容策略、方案矩阵与主线/业务决策路径。 |
 | [rl/raptor/raptor_build_deploy_and_flight_sop.md](rl/raptor/raptor_build_deploy_and_flight_sop.md) | 从 px4board 到首飞的实机 SOP。 |
 | [rl/raptor/raptor_mode_gates_troubleshooting_and_perf.md](rl/raptor/raptor_mode_gates_troubleshooting_and_perf.md) | 模式门限对比、定位门限抖动与 CPU 负载排障。 |
 
